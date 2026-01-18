@@ -1,0 +1,41 @@
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Ride {
+  id          String   @id @default(cuid())
+  name        String
+  land        String
+  description String
+  createdAt   DateTime @default(now())
+
+  slots       Slot[]
+}
+
+model Slot {
+  id        String   @id @default(cuid())
+  rideId    String
+  startTime DateTime
+  capacity  Int
+  booked    Int      @default(0)
+  createdAt DateTime @default(now())
+
+  ride      Ride     @relation(fields: [rideId], references: [id], onDelete: Cascade)
+  bookings  Booking[]
+
+  @@unique([rideId, startTime])
+}
+
+model Booking {
+  id        String   @id @default(cuid())
+  slotId    String
+  guestName String
+  createdAt DateTime @default(now())
+
+  slot      Slot     @relation(fields: [slotId], references: [id], onDelete: Cascade)
+}
