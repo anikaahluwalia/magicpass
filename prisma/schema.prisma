@@ -35,6 +35,7 @@ model Booking {
   id        String   @id @default(cuid())
   slotId    String
   guestName String
+  partySize Int      @default(1)
   createdAt DateTime @default(now())
 
   slot      Slot     @relation(fields: [slotId], references: [id], onDelete: Cascade)

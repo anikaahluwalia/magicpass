@@ -1,18 +1,17 @@
 import { NextResponse } from "next/server";
-import { prisma } from "../../lib/prisma";
+import { getSlotsForRide } from "../../lib/data";
+import { validateId } from "../../lib/validation";
+
+export const dynamic = "force-dynamic";
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
-  const rideId = searchParams.get("rideId");
+  const rideId = validateId(searchParams.get("rideId"), "rideId");
 
-  if (!rideId) {
-    return NextResponse.json({ error: "rideId is required" }, { status: 400 });
+  if (!rideId.ok) {
+    return NextResponse.json({ error: rideId.error }, { status: 400 });
   }
 
-  const slots = await prisma.slot.findMany({
-    where: { rideId },
-    orderBy: { startTime: "asc" },
-  });
-
+  const slots = await getSlotsForRide(rideId.value);
   return NextResponse.json(slots);
 }

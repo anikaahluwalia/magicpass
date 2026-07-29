@@ -1,101 +1,67 @@
 import { NextResponse } from "next/server";
-import { prisma } from "../../lib/prisma";
+import { cancelBooking, createBooking, listRecentBookings } from "../../lib/data";
+import {
+  validateGuestName,
+  validateId,
+  validatePartySize,
+} from "../../lib/validation";
+
+// Never serve a cached response for this endpoint.
+export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const bookings = await prisma.booking.findMany({
-    orderBy: { createdAt: "desc" },
-    include: {
-      slot: {
-        include: {
-          ride: true,
-        },
-      },
-    },
-    take: 50,
-  });
-
-  return NextResponse.json(
-    bookings.map((b: any) => ({
-      id: b.id,
-      guestName: b.guestName,
-      rideName: b.slot.ride.name,
-      land: b.slot.ride.land,
-      startTime: b.slot.startTime,
-      createdAt: b.createdAt,
-    }))
-  );
+  const bookings = await listRecentBookings();
+  return NextResponse.json(bookings);
 }
 
 export async function POST(req: Request) {
-  const body = (await req.json()) as { slotId?: string; guestName?: string };
-
-  if (!body.slotId || !body.guestName) {
-    return NextResponse.json(
-      { error: "slotId and guestName are required" },
-      { status: 400 }
-    );
-  }
-
-  const guestName = body.guestName.trim();
-  if (guestName.length < 2) {
-    return NextResponse.json({ error: "guestName too short" }, { status: 400 });
-  }
-
-  const slot = await prisma.slot.findUnique({ where: { id: body.slotId } });
-  if (!slot) return NextResponse.json({ error: "Slot not found" }, { status: 404 });
-  if (slot.booked >= slot.capacity) {
-    return NextResponse.json({ error: "Slot is full" }, { status: 409 });
-  }
-
+  let body: { slotId?: unknown; guestName?: unknown; partySize?: unknown };
   try {
-    const [, booking] = await prisma.$transaction([
-      prisma.slot.update({
-        where: { id: slot.id },
-        data: { booked: { increment: 1 } },
-      }),
-      prisma.booking.create({
-        data: { slotId: slot.id, guestName },
-      }),
-    ]);
-
-    return NextResponse.json({ bookingId: booking.id });
+    body = await req.json();
   } catch {
-    return NextResponse.json({ error: "Booking failed" }, { status: 500 });
+    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
+
+  const slotId = validateId(body.slotId, "slotId");
+  if (!slotId.ok) {
+    return NextResponse.json({ error: slotId.error }, { status: 400 });
+  }
+
+  const guestName = validateGuestName(body.guestName);
+  if (!guestName.ok) {
+    return NextResponse.json({ error: guestName.error }, { status: 400 });
+  }
+
+  // partySize is optional; default to 1 (a single guest).
+  const partySize = validatePartySize(body.partySize ?? 1);
+  if (!partySize.ok) {
+    return NextResponse.json({ error: partySize.error }, { status: 400 });
+  }
+
+  const result = await createBooking(
+    slotId.value,
+    guestName.value,
+    partySize.value
+  );
+  if (!result.ok) {
+    return NextResponse.json({ error: result.error }, { status: result.status });
+  }
+
+  return NextResponse.json({ bookingId: result.bookingId });
 }
 
 export async function DELETE(req: Request) {
-    const { searchParams } = new URL(req.url);
-    const bookingId = searchParams.get("id");
-  
-    if (!bookingId) {
-      return NextResponse.json({ error: "id is required" }, { status: 400 });
-    }
-  
-    // Find booking first
-    const booking = await prisma.booking.findUnique({
-      where: { id: bookingId },
-    });
-  
-    if (!booking) {
-      return NextResponse.json({ error: "Booking not found" }, { status: 404 });
-    }
-  
-    try {
-      // Decrement slot + delete booking atomically
-      await prisma.$transaction([
-        prisma.slot.update({
-          where: { id: booking.slotId },
-          data: { booked: { decrement: 1 } },
-        }),
-        prisma.booking.delete({
-          where: { id: bookingId },
-        }),
-      ]);
-  
-      return NextResponse.json({ ok: true });
-    } catch {
-      return NextResponse.json({ error: "Cancel failed" }, { status: 500 });
-    }
+  const { searchParams } = new URL(req.url);
+  const bookingId = validateId(searchParams.get("id"), "id");
+
+  if (!bookingId.ok) {
+    return NextResponse.json({ error: bookingId.error }, { status: 400 });
   }
-  
+
+  const result = await cancelBooking(bookingId.value);
+  if (!result.ok) {
+    return NextResponse.json({ error: result.error }, { status: result.status });
+  }
+
+  return NextResponse.json({ ok: true });
+}
