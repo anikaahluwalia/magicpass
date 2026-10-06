@@ -35,6 +35,16 @@ prisma/
 API routes are intentionally thin — they validate input and delegate to
 `app/lib/data.ts`, which is the single source of truth for database logic.
 
+## API Endpoints
+
+- `GET /api/rides` — list all rides
+- `GET /api/slots?rideId=` — get available time slots for a ride
+- `GET /api/bookings` — list bookings
+- `POST /api/bookings` — create a booking
+- `DELETE /api/bookings` — cancel a booking
+
+If a booking would exceed a slot's capacity, the API returns `409 Slot is full`.
+
 ## Getting started
 
 1. Install dependencies:
