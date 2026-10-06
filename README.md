@@ -75,6 +75,15 @@ If a booking would exceed a slot's capacity, the API returns `409 Slot is full`.
 
    Open [http://localhost:3000](http://localhost:3000).
 
+## Testing
+
+To verify the app locally:
+
+1. Start the development server with `npm run dev`.
+2. Create bookings for the same time slot until capacity is reached.
+3. Confirm that additional booking attempts return `409 Slot is full`.
+4. Cancel a booking and verify that capacity becomes available again.
+
 ## How booking works
 
 Each `Slot` has a `capacity` and a `booked` count. Booking is done in a single
